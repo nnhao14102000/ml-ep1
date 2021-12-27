@@ -1,26 +1,106 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using SohatNotebook.Authentication.Configuration;
+using SohatNotebook.DataService.Data;
+using SohatNotebook.DataService.IConfiguration;
 
-namespace SohatNoteBook.Api
+var builder = WebApplication.CreateBuilder(args);
+
+// Adding controller  support
+builder.Services.AddControllers();
+
+// Update a JwtConfig from the settings
+builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
+
+// DbContext Config
+builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            CreateHostBuilder(args).Build().Run();
-        }
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureWebHostDefaults(webBuilder =>
-                {
-                    webBuilder.UseStartup<Startup>();
-                });
-    }
+// Add Dependency Injection for UnitOfWork
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Enable API Versioning
+builder.Services.AddApiVersioning(opt =>
+{
+    // Provide to client the different Api version that we have
+    opt.ReportApiVersions = true;
+
+    // this will allow the api provide a default version
+    opt.AssumeDefaultVersionWhenUnspecified = true;
+
+    opt.DefaultApiVersion = ApiVersion.Default;
+});
+
+
+// Getting the secret from the config
+var key = Encoding.ASCII.GetBytes(builder.Configuration["JwtConfig:Secret"]);
+
+var tokenValidationParameters = new TokenValidationParameters
+{
+    ValidateIssuerSigningKey = true,
+    IssuerSigningKey = new SymmetricSecurityKey(key),
+    ValidateIssuer = false, // ToDo Update
+    ValidateAudience = false, // ToDo Update
+    RequireExpirationTime = false, // ToDo Update
+    ValidateLifetime = true
+};
+
+// Inject into DI container
+builder.Services.AddSingleton(tokenValidationParameters);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(jwt =>
+{
+    jwt.SaveToken = true;
+    jwt.TokenValidationParameters = tokenValidationParameters;
+});
+
+builder.Services.AddDefaultIdentity<IdentityUser>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = true;
+}).AddEntityFrameworkStores<AppDbContext>();
+
+// Add Swagger 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Make routing lower case
+builder.Services.AddRouting(options => options.LowercaseUrls = true);
+
+
+// Build the web application
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SohatNoteBook.Api v1"));
 }
+
+app.UseHttpsRedirection();
+
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
