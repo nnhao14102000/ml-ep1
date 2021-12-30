@@ -39,7 +39,7 @@ public class AccountsController : BaseController
     [Route("Register")]
     public async Task<IActionResult> Register([FromBody] UserRegistrationRequestDto registrationDto)
     {
-        // Check the model of obj we are recieving is valid
+        // Check the model of obj we are receiving is valid
         if (ModelState.IsValid)
         {
             // Check if email already exist
@@ -64,7 +64,7 @@ public class AccountsController : BaseController
                 EmailConfirmed = true // ToDo build email functionality to send to the user to confirm email
             };
 
-            // Addin the user to the table
+            // Add the user to the table
             var isCreated = await _userManager.CreateAsync(newUser, registrationDto.Password);
 
             if (!isCreated.Succeeded) // when the registration has fail
