@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -10,6 +12,7 @@ using SohatNotebook.DataService.IConfiguration;
 using SohatNotebook.Entities.DbSet;
 using SohatNotebook.Entities.Dtos.Generic;
 using SohatNotebook.Entities.Dtos.Incoming;
+using SohatNotebook.Entities.Dtos.Outgoing.Profile;
 
 namespace SohatNoteBook.Api.Controllers.v1;
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
@@ -17,8 +20,9 @@ public class UsersController : BaseController
 {
     public UsersController(
         IUnitOfWork unitOfWork,
-        UserManager<IdentityUser> userManager)
-        : base(unitOfWork, userManager)
+        UserManager<IdentityUser> userManager,
+        IMapper mapper)
+        : base(unitOfWork, userManager, mapper)
     {
     }
 
@@ -27,11 +31,12 @@ public class UsersController : BaseController
     [Route("{id}", Name = "GetUser")]
     public async Task<IActionResult> GetUser(Guid id)
     {
-        var result = new Result<User>();
+        var result = new Result<ProfileDto>();
         var user = await _unitOfWork.Users.GetById(id);
         if (user is not null)
         {
-            result.Content = user;
+            var mapUser = _mapper.Map<ProfileDto>(user);
+            result.Content = mapUser;
             return Ok(result);
         }
 
@@ -45,32 +50,27 @@ public class UsersController : BaseController
     [HttpPost]
     public async Task<IActionResult> AddUser(UserDto user)
     {
-        var result = new Result<User>();
+        var _mapUser = _mapper.Map<User>(user);
 
-        var _user = new User();
-        _user.LastName = user.LastName;
-        _user.FirstName = user.FirstName;
-        _user.Email = user.Email;
-        _user.DateOfBirth = Convert.ToDateTime(user.DateOfBirth);
-        _user.Phone = user.Phone;
-        _user.Country = user.Country;
-        _user.Status = 1;
-
-        await _unitOfWork.Users.Add(_user);
+        await _unitOfWork.Users.Add(_mapUser);
         await _unitOfWork.CompleteAsync();
 
-        return CreatedAtRoute("GetUser", new { id = _user.Id }, user);
+        // TODO: Add the correct return to this action
+        var result = new Result<UserDto>();
+        result.Content = user;
+        return CreatedAtRoute("GetUser", new { id = _mapUser.Id }, result);
     }
 
     // Get all
     [HttpGet]
     public async Task<IActionResult> GetUsers()
     {
-        var result = new PagedResult<User>();
+        var result = new PagedResult<ProfileDto>();
 
         var users = await _unitOfWork.Users.All();
-        result.Content = users.ToList();
-        result.ResultCount = users.Count();
+        var mapUsers = _mapper.Map<IEnumerable<ProfileDto>>(users);
+        result.Content = mapUsers.ToList();
+        result.ResultCount = mapUsers.Count();
         return Ok(result);
     }
 }

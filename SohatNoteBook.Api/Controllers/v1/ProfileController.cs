@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +9,7 @@ using SohatNotebook.Entities.DbSet;
 using SohatNotebook.Entities.Dtos.Errors;
 using SohatNotebook.Entities.Dtos.Generic;
 using SohatNotebook.Entities.Dtos.Incoming.Profile;
+using SohatNotebook.Entities.Dtos.Outgoing.Profile;
 using System;
 using System.Threading.Tasks;
 
@@ -18,8 +20,9 @@ public class ProfileController : BaseController
 {
     public ProfileController(
         IUnitOfWork unitOfWork,
-        UserManager<IdentityUser> userManager)
-        : base(unitOfWork, userManager)
+        UserManager<IdentityUser> userManager,
+        IMapper mapper)
+        : base(unitOfWork, userManager, mapper)
     {
     }
 
@@ -27,7 +30,7 @@ public class ProfileController : BaseController
     public async Task<IActionResult> GetProfile()
     {
         var loggedInUser = await _userManager.GetUserAsync(HttpContext.User);
-        var result = new Result<User>();
+        var result = new Result<ProfileDto>();
 
         if (loggedInUser is null)
         {
@@ -48,15 +51,15 @@ public class ProfileController : BaseController
                 MessageErrors.Generic.NotFound);
             return NotFound(result);
         }
-
-        result.Content = profile;
+        var mapProfile = _mapper.Map<ProfileDto>(profile);
+        result.Content = mapProfile;
         return Ok(result);
     }
 
     [HttpPut]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto profile)
     {
-        var result = new Result<User>();
+        var result = new Result<ProfileDto>();
 
         // If the model is valid
         if (!ModelState.IsValid)
@@ -99,7 +102,9 @@ public class ProfileController : BaseController
         if (isUpdated)
         {
             await _unitOfWork.CompleteAsync();
-            result.Content = userProfile;
+
+            var mapProfile = _mapper.Map<ProfileDto>(profile);
+            result.Content = mapProfile;
             return Ok(result);
         }
 

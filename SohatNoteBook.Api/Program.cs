@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -103,6 +104,9 @@ builder.Services.AddSwaggerGen(c =>
 
     c.AddSecurityRequirement(securityRequirement);
 });
+
+// Add AutoMapper
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
 // Make routing lower case
 builder.Services.AddRouting(options =>
