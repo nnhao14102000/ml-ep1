@@ -1,11 +1,15 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SohatNotebook.Configuration.Messages;
 using SohatNotebook.DataService.IConfiguration;
+using SohatNotebook.Entities.DbSet;
+using SohatNotebook.Entities.Dtos.Errors;
+using SohatNotebook.Entities.Dtos.Generic;
 using SohatNotebook.Entities.Dtos.Incoming.Profile;
+using System;
+using System.Threading.Tasks;
 
 namespace SohatNoteBook.Api.Controllers.v1;
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
@@ -23,42 +27,67 @@ public class ProfileController : BaseController
     public async Task<IActionResult> GetProfile()
     {
         var loggedInUser = await _userManager.GetUserAsync(HttpContext.User);
+        var result = new Result<User>();
 
         if (loggedInUser is null)
         {
-            return BadRequest("User is not found");
+            result.Error = PopulateError(400,
+                MessageErrors.Profile.UserNotFound,
+                MessageErrors.Generic.BadRequest);
+            return BadRequest(result);
         }
 
         var identityId = new Guid(loggedInUser.Id);
 
         var profile = await _unitOfWork.Users.GetUserByIdentityId(identityId);
 
-        if (profile is null) return BadRequest("User not found");
+        if (profile is null)
+        {
+            result.Error = PopulateError(404,
+                MessageErrors.Profile.UserNotFound,
+                MessageErrors.Generic.NotFound);
+            return NotFound(result);
+        }
 
-        return Ok(profile);
+        result.Content = profile;
+        return Ok(result);
     }
 
     [HttpPut]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto profile)
     {
+        var result = new Result<User>();
+
         // If the model is valid
         if (!ModelState.IsValid)
         {
-            return BadRequest("Invalid payload");
+            result.Error = PopulateError(400,
+                MessageErrors.Generic.InvalidPayload,
+                MessageErrors.Generic.BadRequest);
+            return BadRequest(result);
         }
 
         var loggedInUser = await _userManager.GetUserAsync(HttpContext.User);
 
         if (loggedInUser is null)
         {
-            return BadRequest("User is not found");
+            result.Error = PopulateError(400,
+                MessageErrors.Profile.UserNotFound,
+                MessageErrors.Generic.BadRequest);
+            return BadRequest(result);
         }
 
         var identityId = new Guid(loggedInUser.Id);
 
         var userProfile = await _unitOfWork.Users.GetUserByIdentityId(identityId);
 
-        if (userProfile is null) return BadRequest("User not found");
+        if (userProfile is null)
+        {
+            result.Error = PopulateError(404,
+                MessageErrors.Profile.UserNotFound,
+                MessageErrors.Generic.NotFound);
+            return NotFound(result);
+        }
 
         userProfile.Address = profile.Address;
         userProfile.Sex = profile.Sex;
@@ -70,9 +99,13 @@ public class ProfileController : BaseController
         if (isUpdated)
         {
             await _unitOfWork.CompleteAsync();
-            return Ok(userProfile);
+            result.Content = userProfile;
+            return Ok(result);
         }
 
-        return BadRequest("Something went wrong, please try again later");
+        result.Error = PopulateError(500,
+            MessageErrors.Generic.SomethinsWentWrong,
+            MessageErrors.Generic.UnableToProcess);
+        return BadRequest(result);
     }
 }

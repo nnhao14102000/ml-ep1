@@ -1,11 +1,14 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SohatNotebook.Configuration.Messages;
 using SohatNotebook.DataService.IConfiguration;
 using SohatNotebook.Entities.DbSet;
+using SohatNotebook.Entities.Dtos.Generic;
 using SohatNotebook.Entities.Dtos.Incoming;
 
 namespace SohatNoteBook.Api.Controllers.v1;
@@ -21,17 +24,29 @@ public class UsersController : BaseController
 
     // Get
     [HttpGet]
-    [Route("GetUser", Name = "GetUser")]
+    [Route("{id}", Name = "GetUser")]
     public async Task<IActionResult> GetUser(Guid id)
     {
+        var result = new Result<User>();
         var user = await _unitOfWork.Users.GetById(id);
-        return Ok(user);
+        if (user is not null)
+        {
+            result.Content = user;
+            return Ok(result);
+        }
+
+        result.Error = PopulateError(404,
+                MessageErrors.Users.UserNotFound,
+                MessageErrors.Generic.ObjectNotFound);
+        return NotFound(result);
     }
 
     // Post
     [HttpPost]
     public async Task<IActionResult> AddUser(UserDto user)
     {
+        var result = new Result<User>();
+
         var _user = new User();
         _user.LastName = user.LastName;
         _user.FirstName = user.FirstName;
@@ -51,7 +66,11 @@ public class UsersController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetUsers()
     {
+        var result = new PagedResult<User>();
+
         var users = await _unitOfWork.Users.All();
-        return Ok(users);
+        result.Content = users.ToList();
+        result.ResultCount = users.Count();
+        return Ok(result);
     }
 }
